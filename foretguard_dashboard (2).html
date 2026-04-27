@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ForêtGuard — Détection Incendies IoT</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: #0A0C0A;
+      color: #D9E8D0;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    .hdr {
+      background: #0D110D;
+      border-bottom: 1px solid #1F2A1F;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hdr-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 40px; height: 40px;
+      background: #1A2F1A;
+      border: 1px solid #2D4A2D;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand { font-family: 'Space Mono', monospace; font-size: 15px; font-weight: 700; color: #5DC267; }
+    .brand-sub { font-size: 10px; color: #3D5A3D; letter-spacing: 1.5px; text-transform: uppercase; }
+
+    .alert-banner {
+      display: flex; align-items: center; gap: 8px;
+      background: #1A0D0D;
+      border: 1px solid #5A1A1A;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 12px; color: #FF6B6B;
+      font-family: 'Space Mono', monospace;
+    }
+    .ok-banner {
+      display: flex; align-items: center; gap: 8px;
+      background: #0D1A0D;
+      border: 1px solid #1A4A1A;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 12px; color: #5DC267;
+      font-family: 'Space Mono', monospace;
+    }
+    .banner-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .banner-dot.green { background: #5DC267; animation: pulse 2s infinite; }
+    .banner-dot.red   { background: #EF4444; animation: blink 1s infinite; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
+
+    .clock { font-family: 'Space Mono', monospace; font-size: 11px; color: #3D5A3D; }
+
+    /* ── BODY ── */
+    .body { padding: 20px 24px; }
+
+    .slabel {
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      color: #3D5A3D; margin-bottom: 12px; font-weight: 500;
+    }
+
+    /* ── METRIC CARDS ── */
+    .cards4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .card {
+      background: #0F140F;
+      border: 1px solid #1A261A;
+      border-radius: 10px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .card.g::after { background: #5DC267; }
+    .card.o::after { background: #F59E0B; }
+    .card.r::after { background: #EF4444; }
+    .card.b::after { background: #60A5FA; }
+
+    .clbl { font-size: 10px; color: #3D5A3D; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .cval { font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; line-height: 1; }
+    .card.g .cval { color: #86EFAC; }
+    .card.o .cval { color: #FCD34D; }
+    .card.r .cval { color: #FCA5A5; }
+    .card.b .cval { color: #93C5FD; }
+    .cunit { font-size: 12px; font-weight: 400; color: #3D5A3D; }
+    .cinfo { font-size: 10px; color: #3D5A3D; margin-top: 7px; }
+
+    .risk-bar {
+      height: 5px; background: #1A261A; border-radius: 3px; margin-top: 9px; overflow: hidden;
+    }
+    .risk-fill { height: 100%; border-radius: 3px; transition: width 1.2s ease; }
+
+    /* ── MID ROW ── */
+    .mid-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .chart-card {
+      background: #0F140F;
+      border: 1px solid #1A261A;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .chart-hdr {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .chart-title { font-size: 12px; font-weight: 500; color: #9EC89E; }
+    .chip {
+      font-size: 9px; padding: 3px 8px; border-radius: 4px;
+      background: #0D1A0D; color: #5DC267;
+      border: 1px solid #1A4A1A;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .legend { display: flex; gap: 16px; margin-bottom: 10px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #5D7A5D; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+    .sparkline-area { position: relative; height: 120px; }
+
+    /* ── NODES ── */
+    .node-grid { display: flex; flex-direction: column; gap: 9px; }
+    .node-item {
+      background: #0D110D;
+      border: 1px solid #1A261A;
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .node-left { display: flex; align-items: center; gap: 10px; }
+    .node-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .node-dot.active { background: #5DC267; box-shadow: 0 0 6px #5DC267; animation: pulse 2s infinite; }
+    .node-dot.warn   { background: #F59E0B; box-shadow: 0 0 6px #F59E0B; }
+    .node-dot.alert  { background: #EF4444; box-shadow: 0 0 6px #EF4444; animation: blink 1s infinite; }
+    .node-name { font-size: 12px; color: #9EC89E; }
+    .node-loc  { font-size: 10px; color: #3D5A3D; }
+    .node-vals { font-family: 'Space Mono', monospace; font-size: 10px; color: #5D7A5D; text-align: right; line-height: 1.6; }
+
+    /* ── BOTTOM ROW ── */
+    .bot-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* log */
+    .log-item {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 8px 0;
+      border-bottom: 1px solid #141A14;
+      font-size: 11px;
+    }
+    .log-item:last-child { border-bottom: none; }
+    .log-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+    .log-dot.fire { background: #EF4444; }
+    .log-dot.warn { background: #F59E0B; }
+    .log-dot.ok   { background: #5DC267; }
+    .log-dot.info { background: #60A5FA; }
+    .log-t { font-family: 'Space Mono', monospace; font-size: 10px; color: #3D5A3D; }
+    .log-m { color: #7A9A7A; line-height: 1.5; }
+
+    /* risk */
+    .risk-score-big {
+      font-family: 'Space Mono', monospace;
+      font-size: 40px; font-weight: 700;
+      text-align: center; margin: 10px 0 4px;
+    }
+    .risk-label { text-align: center; font-size: 11px; letter-spacing: 1px; margin-bottom: 12px; }
+    .risk-meter { display: flex; gap: 4px; justify-content: center; }
+    .risk-seg {
+      width: 20px; height: 9px; border-radius: 2px; opacity: 0.2;
+      transition: opacity 0.5s;
+    }
+    .risk-seg.active { opacity: 1; }
+
+    /* stats */
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px;
+    }
+    .stat-box {
+      background: #0D110D; border: 1px solid #1A261A; border-radius: 8px;
+      padding: 10px; text-align: center;
+    }
+    .stat-n { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; color: #5DC267; }
+    .stat-l { font-size: 10px; color: #3D5A3D; margin-top: 3px; }
+
+    /* ── FOOTER ── */
+    .footer {
+      background: #0D110D;
+      border-top: 1px solid #141A14;
+      padding: 9px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 10px; color: #2A3A2A;
+      font-family: 'Space Mono', monospace;
+      margin-top: 8px;
+    }
+    .ts-logo { display: flex; align-items: center; gap: 6px; }
+    .ts-dot { width: 5px; height: 5px; background: #5DC267; border-radius: 50%; animation: pulse 2s infinite; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .cards4 { grid-template-columns: repeat(2, 1fr); }
+      .mid-row { grid-template-columns: 1fr; }
+      .bot-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 500px) {
+      .cards4 { grid-template-columns: 1fr; }
+      .hdr { flex-wrap: wrap; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ HEADER ══════════════════ -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+           stroke="#5DC267" stroke-width="2" stroke-linecap="round">
+        <path d="M17 8C8 10 5.9 16.17 3.82 19c-.87 1.2-.59 2.58.63 3.25C7 24 12 22.5 14 21c2-1.5 4-5 3-8"/>
+        <path d="M17 8c1-2 1.5-4.5 0-6.5-2 0-4.5 1.5-5 4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand">ForêtGuard</div>
+      <div class="brand-sub">Détection incendies — IoT ESP32</div>
+    </div>
+  </div>
+
+  <div id="alertBanner" class="ok-banner">
+    <div class="banner-dot green" id="bannerDot"></div>
+    <span id="alertText">Système nominal — Aucune alerte</span>
+  </div>
+
+  <div class="clock" id="clock">—</div>
+</div>
+
+<!-- ══════════════════ BODY ══════════════════ -->
+<div class="body">
+
+  <!-- METRIC CARDS -->
+  <div class="slabel">Capteurs en temps réel</div>
+  <div class="cards4">
+
+    <div class="card o">
+      <div class="clbl">Température</div>
+      <div class="cval" id="tempVal">34 <span class="cunit">°C</span></div>
+      <div class="risk-bar">
+        <div class="risk-fill" id="tempBar" style="width:49%;background:#F59E0B"></div>
+      </div>
+      <div class="cinfo">Seuil alerte : 55 °C</div>
+    </div>
+
+    <div class="card b">
+      <div class="clbl">Humidité</div>
+      <div class="cval" id="humVal">42 <span class="cunit">%</span></div>
+      <div class="risk-bar">
+        <div class="risk-fill" id="humBar" style="width:42%;background:#60A5FA"></div>
+      </div>
+      <div class="cinfo">Critique si &lt; 20 %</div>
+    </div>
+
+    <div class="card o">
+      <div class="clbl">Fumée — MQ-2</div>
+      <div class="cval" id="smokeVal">187 <span class="cunit">ppm</span></div>
+      <div class="risk-bar">
+        <div class="risk-fill" id="smokeBar" style="width:21%;background:#F59E0B"></div>
+      </div>
+      <div class="cinfo">Seuil alerte : 500 ppm</div>
+    </div>
+
+    <div class="card g" id="flameCard">
+      <div class="clbl">Flamme — KY-026</div>
+      <div class="cval" id="flameVal">NON</div>
+      <div class="cinfo" id="flameInfo">Aucun signal détecté</div>
+    </div>
+
+  </div>
+
+  <!-- MID ROW -->
+  <div class="mid-row">
+
+    <!-- CHART -->
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title">Historique température &amp; fumée — 12 dernières heures</div>
+        <div class="chip">ThingSpeak</div>
+      </div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#F59E0B"></div> Température (°C)
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#60A5FA;border-style:dashed"></div> Fumée (ppm)
+        </div>
+      </div>
+      <div class="sparkline-area">
+        <canvas id="histChart"
+                role="img"
+                aria-label="Graphique historique température et fumée sur 12 heures">
+          Données historiques capteurs forêt.
+        </canvas>
+      </div>
+    </div>
+
+    <!-- NODES -->
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title">Nœuds ESP32</div>
+        <div class="chip">LoRa 433 MHz</div>
+      </div>
+      <div class="node-grid">
+
+        <div class="node-item">
+          <div class="node-left">
+            <div class="node-dot active"></div>
+            <div>
+              <div class="node-name">Node-01 — Forêt A</div>
+              <div class="node-loc">Zone Nord · Capteur terrain</div>
+            </div>
+          </div>
+          <div class="node-vals" id="n1vals">34°C · 42% · 187ppm<br><span style="color:#5DC267">● OK</span></div>
+        </div>
+
+        <div class="node-item">
+          <div class="node-left">
+            <div class="node-dot warn" id="n2dot"></div>
+            <div>
+              <div class="node-name">Node-02 — Forêt B</div>
+              <div class="node-loc">Zone Est · Capteur terrain</div>
+            </div>
+          </div>
+          <div class="node-vals">48°C · 28% · 320ppm<br><span style="color:#F59E0B">● Attention</span></div>
+        </div>
+
+        <div class="node-item">
+          <div class="node-left">
+            <div class="node-dot active"></div>
+            <div>
+              <div class="node-name">Gateway ESP32</div>
+              <div class="node-loc">WiFi → ThingSpeak</div>
+            </div>
+          </div>
+          <div class="node-vals">RSSI : −62 dBm<br><span style="color:#5DC267">● Connecté</span></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM ROW -->
+  <div class="bot-row">
+
+    <!-- LOG -->
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title">Journal d'événements</div>
+      </div>
+
+      <div class="log-item">
+        <div class="log-dot warn"></div>
+        <div>
+          <div class="log-t" id="lt1">--:--</div>
+          <div class="log-m">Node-02 — Température 48 °C, humidité 28 %</div>
+        </div>
+      </div>
+      <div class="log-item">
+        <div class="log-dot info"></div>
+        <div>
+          <div class="log-t" id="lt2">--:--</div>
+          <div class="log-m">Synchronisation ThingSpeak réussie</div>
+        </div>
+      </div>
+      <div class="log-item">
+        <div class="log-dot ok"></div>
+        <div>
+          <div class="log-t" id="lt3">--:--</div>
+          <div class="log-m">Node-01 — Tous capteurs nominaux</div>
+        </div>
+      </div>
+      <div class="log-item">
+        <div class="log-dot ok"></div>
+        <div>
+          <div class="log-t" id="lt4">--:--</div>
+          <div class="log-m">Système démarré — 2 nœuds actifs</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RISK SCORE -->
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title">Score de risque incendie</div>
+      </div>
+      <div class="risk-score-big" id="riskScore" style="color:#FCD34D">38</div>
+      <div class="risk-label"    id="riskLabel"  style="color:#FCD34D">RISQUE MODÉRÉ</div>
+      <div class="risk-meter"    id="riskMeter"></div>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-n">2</div>
+          <div class="stat-l">Nœuds actifs</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-n" id="alarmCount">0</div>
+          <div class="stat-l">Alarmes feu</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-n">30s</div>
+          <div class="stat-l">Fréq. envoi</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-n" id="uptime">0h</div>
+          <div class="stat-l">Uptime</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════ FOOTER ══════════════════ -->
+<div class="footer">
+  <span>ISET Jendouba — PFE 2025/2026 · ESP32 + LoRa SX1278</span>
+  <div class="ts-logo">
+    <div class="ts-dot"></div>
+    ThingSpeak · Channel #XXXXXX
+  </div>
+  <span id="footClock">Dernier sync : —</span>
+</div>
+
+<!-- ══════════════════ SCRIPTS ══════════════════ -->
+<script>
+/* ─── HORLOGE ─── */
+const startTime = Date.now();
+let alarmCount = 0;
+
+function fmt(n) { return String(n).padStart(2,'0'); }
+
+function updateClock() {
+  const n = new Date();
+  const t = fmt(n.getHours())+':'+fmt(n.getMinutes())+':'+fmt(n.getSeconds());
+  const d = n.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('clock').textContent = d + '  ' + t;
+  document.getElementById('footClock').textContent = 'Dernier sync : ' + t;
+
+  const mins = Math.floor((Date.now()-startTime)/60000);
+  document.getElementById('uptime').textContent =
+    mins < 60 ? mins+'min' : Math.floor(mins/60)+'h '+('0'+mins%60).slice(-2)+'m';
+
+  // timestamps journal
+  const ago = (h,m) => {
+    const x = new Date(n);
+    x.setHours(x.getHours()-h, x.getMinutes()-m);
+    return fmt(x.getHours())+':'+fmt(x.getMinutes());
+  };
+  document.getElementById('lt1').textContent = ago(0,5);
+  document.getElementById('lt2').textContent = ago(0,12);
+  document.getElementById('lt3').textContent = ago(0,28);
+  document.getElementById('lt4').textContent = ago(6,0);
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+/* ─── GRAPHIQUE HISTORIQUE ─── */
+const labels   = [];
+const tempData = [];
+const smokeData = [];
+const now = new Date();
+for (let i = 11; i >= 0; i--) {
+  const t = new Date(now);
+  t.setHours(t.getHours()-i);
+  labels.push(fmt(t.getHours())+'h');
+  tempData.push(Math.round(22 + Math.random()*18 + (11-i)*0.9));
+  smokeData.push(Math.round(80 + Math.random()*200 + (11-i)*9));
+}
+
+new Chart(document.getElementById('histChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'Température (°C)',
+        data: tempData,
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,0.08)',
+        fill: true, tension: 0.4, pointRadius: 2, borderWidth: 1.5,
+        yAxisID: 'y'
+      },
+      {
+        label: 'Fumée (ppm)',
+        data: smokeData,
+        borderColor: '#60A5FA',
+        backgroundColor: 'rgba(96,165,250,0.06)',
+        fill: true, tension: 0.4, pointRadius: 2, borderWidth: 1.5,
+        borderDash: [4,3],
+        yAxisID: 'y1'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        ticks: { color:'#3D5A3D', font:{size:9,family:'Space Mono'}, maxRotation:0 },
+        grid:  { color:'rgba(255,255,255,0.03)' },
+        border:{ color:'#1A261A' }
+      },
+      y: {
+        position:'left',
+        ticks: { color:'#F59E0B', font:{size:9} },
+        grid:  { color:'rgba(255,255,255,0.03)' },
+        border:{ color:'#1A261A' }
+      },
+      y1: {
+        position:'right',
+        ticks: { color:'#60A5FA', font:{size:9} },
+        grid:  { display:false },
+        border:{ color:'#1A261A' }
+      }
+    }
+  }
+});
+
+/* ─── RISK METER ─── */
+const riskMeter = document.getElementById('riskMeter');
+const riskColors = ['#5DC267','#5DC267','#86EFAC','#FCD34D','#F59E0B','#F59E0B','#FB923C','#EF4444','#EF4444','#DC2626'];
+for (let i = 0; i < 10; i++) {
+  const s = document.createElement('div');
+  s.className = 'risk-seg' + (i < 4 ? ' active' : '');
+  s.style.background = riskColors[i];
+  riskMeter.appendChild(s);
+}
+
+/* ─── CONFIGURATION THINGSPEAK ─── */
+const TS_CHANNEL_ID = 'XXXXXX';      // ← Remplace par ton Channel ID
+const TS_API_KEY    = 'YYYYYYYY';    // ← Remplace par ta Read API Key
+
+let sim = { temp: 34, hum: 42, smoke: 187, flame: 0 };
+
+/* ─── MISE À JOUR AFFICHAGE ─── */
+function updateDisplay() {
+  const T = isNaN(sim.temp)  ? 0 : Math.round(sim.temp);
+  const H = isNaN(sim.hum)   ? 0 : Math.round(sim.hum);
+  const S = isNaN(sim.smoke) ? 0 : Math.round(sim.smoke);
+  const F = sim.flame == 1;
+
+  // Cards
+  document.getElementById('tempVal').innerHTML  = T + ' <span class="cunit">°C</span>';
+  document.getElementById('humVal').innerHTML   = H + ' <span class="cunit">%</span>';
+  document.getElementById('smokeVal').innerHTML = S + ' <span class="cunit">ppm</span>';
+
+  document.getElementById('tempBar').style.width  = Math.min(100,(T/75)*100).toFixed(1)+'%';
+  document.getElementById('humBar').style.width   = Math.min(100,H)+'%';
+  document.getElementById('smokeBar').style.width = Math.min(100,(S/900)*100).toFixed(1)+'%';
+
+  // Node-01
+  document.getElementById('n1vals').innerHTML =
+    T+'°C · '+H+'% · '+S+'ppm<br><span style="color:#5DC267">● OK</span>';
+
+  // Risk score
+  const risk = Math.round((T/75)*40 + ((100-H)/100)*30 + (S/900)*30);
+  document.getElementById('riskScore').textContent = risk;
+
+  let rColor, rTxt, segsOn;
+  if      (risk < 30) { rColor='#5DC267'; rTxt='RISQUE FAIBLE';     segsOn=2; }
+  else if (risk < 55) { rColor='#FCD34D'; rTxt='RISQUE MODÉRÉ';     segsOn=4; }
+  else if (risk < 75) { rColor='#F59E0B'; rTxt='RISQUE ÉLEVÉ';      segsOn=7; }
+  else                { rColor='#EF4444'; rTxt='DANGER — INCENDIE';  segsOn=10; }
+
+  document.getElementById('riskScore').style.color = rColor;
+  document.getElementById('riskLabel').style.color = rColor;
+  document.getElementById('riskLabel').textContent = rTxt;
+  riskMeter.querySelectorAll('.risk-seg').forEach((s,i) => s.classList.toggle('active', i < segsOn));
+
+  // Flame / Fire alert
+  const fireDetected = F || T > 60 || S > 700;
+  if (fireDetected) {
+    document.getElementById('flameVal').textContent     = 'OUI';
+    document.getElementById('flameInfo').textContent    = '⚠ Signal flamme détecté !';
+    document.getElementById('flameInfo').style.color    = '#EF4444';
+    document.getElementById('flameCard').style.borderColor = '#5A1A1A';
+    document.getElementById('alertBanner').className    = 'alert-banner';
+    document.getElementById('bannerDot').className      = 'banner-dot red';
+    document.getElementById('alertText').textContent    = 'ALERTE INCENDIE — Nœud actif !';
+    alarmCount++;
+    document.getElementById('alarmCount').textContent   = alarmCount;
+  } else {
+    document.getElementById('flameVal').textContent     = 'NON';
+    document.getElementById('flameInfo').textContent    = 'Aucun signal détecté';
+    document.getElementById('flameInfo').style.color    = '#3D5A3D';
+    document.getElementById('flameCard').style.borderColor = '#1A261A';
+    document.getElementById('alertBanner').className    = 'ok-banner';
+    document.getElementById('bannerDot').className      = 'banner-dot green';
+    document.getElementById('alertText').textContent    = 'Système nominal — Aucune alerte';
+  }
+}
+
+/* ─── FETCH THINGSPEAK ─── */
+async function fetchThingSpeak() {
+  // Si Channel ID non configuré → fallback simulation
+  if (TS_CHANNEL_ID === 'XXXXXX') {
+    sim.temp  = Math.min(75, Math.max(18, sim.temp  + (Math.random()-0.45)*2.5));
+    sim.hum   = Math.min(95, Math.max(10, sim.hum   + (Math.random()-0.52)*2));
+    sim.smoke = Math.min(900, Math.max(50, sim.smoke + (Math.random()-0.45)*20));
+    sim.flame = 0;
+    updateDisplay();
+    return;
+  }
+
+  try {
+    const url = `https://api.thingspeak.com/channels/${TS_CHANNEL_ID}/feeds/last.json?api_key=${TS_API_KEY}`;
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    // field1=température · field2=humidité · field3=fumée · field4=flamme
+    sim.temp  = parseFloat(data.field1) || 0;
+    sim.hum   = parseFloat(data.field2) || 0;
+    sim.smoke = parseFloat(data.field3) || 0;
+    sim.flame = parseInt(data.field4)   || 0;
+
+    // Statut footer
+    const t = new Date();
+    const hm = fmt(t.getHours())+':'+fmt(t.getMinutes())+':'+fmt(t.getSeconds());
+    document.getElementById('footClock').textContent = 'Dernier sync ThingSpeak : ' + hm;
+
+    updateDisplay();
+  } catch(err) {
+    console.warn('ThingSpeak fetch error:', err);
+    document.getElementById('footClock').textContent = '⚠ Erreur sync ThingSpeak';
+  }
+}
+
+// Premier appel immédiat puis toutes les 30 secondes
+fetchThingSpeak();
+setInterval(fetchThingSpeak, 30000);
+</script>
+</body>
+</html>
